@@ -1,0 +1,11 @@
+../Core/Src/sx1278.c:23:9:get_irq1_register	16	static
+../Core/Src/sx1278.c:30:9:get_irq2_register	16	static
+../Core/Src/sx1278.c:37:6:spi_single_write	16	static
+../Core/Src/sx1278.c:47:9:spi_single_read	32	static
+../Core/Src/sx1278.c:60:6:sx1278_struct_init	16	static
+../Core/Src/sx1278.c:81:9:sx1278_read_all_registers	40	static
+../Core/Src/sx1278.c:98:9:sx1278_write_all_registers	40	static
+../Core/Src/sx1278.c:114:9:sx1278_init	32	static
+../Core/Src/sx1278.c:143:9:sx1278_fifo_fill	32	static
+../Core/Src/sx1278.c:164:9:change_opmode	40	static
+../Core/Src/sx1278.c:187:9:sx1278_transmit	48	static
