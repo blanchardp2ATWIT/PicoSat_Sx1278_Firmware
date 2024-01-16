@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "sx1278.h"
+#include <string.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -66,9 +67,15 @@ static void MX_TIM1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void tmp_tx(radio *r, SPI_HandleTypeDef *hspi, uint8_t *data, uint8_t data_size)
+{
+	r->sx_state = TRANSMITTER;
+	memcpy(r->tx_buffer, data, data_size);
+	r->tx_buffer_size = data_size;
+}
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
-	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
-	sx1278_transmit(&r.radio, &hspi1, data, 12);
+	tmp_tx(&r, &hspi1, data, sizeof(data));
 }
 
 /* USER CODE END 0 */
@@ -85,7 +92,8 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */  HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -105,9 +113,9 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Init(&htim1);
-  HAL_TIM_Base_Start_IT(&htim1);
-  sx1278_init(&r.radio, &hspi1);
-
+//  HAL_TIM_Base_Start_IT(&htim1);
+  sx1278_init(&r, &hspi1);
+  tmp_tx(&r, &hspi1, data, sizeof(data));
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -115,13 +123,13 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  sx1278_transmit(&r.radio, &hspi1, data,12);
-
+	  SX1278_APP(&r, &hspi1);
     /* USER CODE BEGIN 3 */
   }
 
   /* USER CODE END 3 */
 }
+
 
 /**
   * @brief System Clock Configuration

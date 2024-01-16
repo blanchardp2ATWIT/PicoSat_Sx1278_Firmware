@@ -1263,15 +1263,18 @@ typedef enum
 	RECEIVER = 5,
 }radio_state;
 
-typedef enum
+typedef struct
 {
 	//Setting Fifo Thresh and Filling it.
-	tx_init,
+
+	uint8_t tx_init;
+	uint8_t tx_inp;
+	uint8_t tx_fifo_full;
 }tx_flags;
 
 typedef enum
 {
-	;
+	bad,
 }rx_flags;
 //Master Control Struct for the Radio
 typedef struct
@@ -1279,11 +1282,10 @@ typedef struct
 	SX1278 radio;
 	radio_state sx_state;
 	tx_flags tx_flags;
-	uint8_t tx_buffer[64];
+	uint8_t tx_buffer[1024];
 	uint8_t tx_buffer_size;
-	rx_flags rx_flags;
-	uint8_t rx_buffer[64];
-	uint8_t rx_buffer_size;
+	uint8_t tx_buffer_prog;
+
 }radio;
 
 
@@ -1292,9 +1294,9 @@ uint8_t spi_single_read(SPI_HandleTypeDef *hspi, uint8_t address);
 uint8_t sx1278_read_all_registers(SX1278 *radio, SPI_HandleTypeDef *hspi);
 uint8_t get_irq1_register(SPI_HandleTypeDef *hspi);
 uint8_t get_irq2_register(SPI_HandleTypeDef *hspi);
-uint8_t sx1278_init(SX1278 *radio, SPI_HandleTypeDef *hspi);
+uint8_t sx1278_init(radio *radio, SPI_HandleTypeDef *hspi);
 uint8_t sx1278_transmit(SX1278 *radio, SPI_HandleTypeDef *hspi, uint8_t  *data,uint8_t datalength);
 uint8_t change_opmode(SX1278 *radio, SPI_HandleTypeDef *hspi, radio_state new_mode);
-
+void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi);
 
 #endif //1278

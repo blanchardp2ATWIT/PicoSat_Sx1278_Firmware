@@ -18,6 +18,7 @@
 #define WRITE_MASK 0b10000000
 #define READ_MASK 0b01111111
 
+#define DATA_SIZE 0x40
 
 //Gets the IRQ2 Register Status
 uint8_t get_irq1_register(SPI_HandleTypeDef *hspi)
@@ -71,6 +72,7 @@ void sx1278_struct_init(SX1278 *radio)
 	radio->RegPaConfig |= RF_PACONFIG_PASELECT_RFO | 0x04 | 0x0f;
 	radio->RegPaRamp |= 0x00;
 	radio->RegLna |= RF_LNA_GAIN_G6;
+	radio->RegFdevMsb |= 0b00111010;
 	//TCXO Settings:
 	radio->RegTcxo = RF_TCXO_TCXOINPUT_ON;
 	radio->RegFifoThresh |=  0x0b00111111;
@@ -110,14 +112,22 @@ uint8_t sx1278_write_all_registers(SX1278 *radio, SPI_HandleTypeDef *hspi)
 	return 0;
 }
 
+void sx1278_mem_init(SPI_HandleTypeDef *hspi, radio *radio)
+{
+	// Set for the SX App
+	radio->tx_flags.tx_init = 0;
+	radio->tx_flags.tx_inp= 0;
+	radio->tx_buffer_prog = 0;
+}
+
 //General Init Function for the Module.
-uint8_t sx1278_init(SX1278 *radio, SPI_HandleTypeDef *hspi)
+uint8_t sx1278_init(radio *radio, SPI_HandleTypeDef *hspi)
 {
 	uint8_t timeout_counter = 0;
 	uint8_t stat = 0;
 	while(stat == 0 && timeout_counter < TIMEOUT_COUNTER_LIM)
 	{
-		stat = sx1278_read_all_registers(radio, hspi);
+		stat = sx1278_read_all_registers(&(radio->radio), hspi);
 		timeout_counter++;
 		if(timeout_counter == TIMEOUT_COUNTER_LIM-1)
 		{
@@ -126,37 +136,31 @@ uint8_t sx1278_init(SX1278 *radio, SPI_HandleTypeDef *hspi)
 	}
 	timeout_counter = 0;
 	stat = 0;
-	sx1278_struct_init(radio);
+	sx1278_struct_init(&(radio->radio));
 	while(stat == 0 && timeout_counter < TIMEOUT_COUNTER_LIM)
 	{
 		timeout_counter++;
-		stat = sx1278_write_all_registers(radio, hspi);
+		stat = sx1278_write_all_registers(&(radio->radio), hspi);
 		if(timeout_counter == TIMEOUT_COUNTER_LIM-1)
 		{
 			return 0;
 		}
 	}
+	sx1278_mem_init(hspi, radio);
 	return 1;
 }
 
-
-uint8_t sx1278_fifo_fill(SPI_HandleTypeDef *hspi, uint8_t* data, uint8_t data_length)
+uint8_t sx1278_fifo_fill(SPI_HandleTypeDef *hspi, uint8_t* data)
 {
 	uint8_t address_packet = WRITE_MASK | REG_FIFO;
-	uint8_t fill_char = 0;
-	uint8_t temp_counter = 0;
- 	for(uint8_t packet_part = 0; packet_part < PACKET_LENGTH; packet_part++)
+ 	for(uint8_t i = 0; i < DATA_SIZE; i++)
 	{
-		if(packet_part < data_length)
-		{
-			spi_single_write(hspi, address_packet, data[packet_part]);
-			temp_counter++;
-		}
-		else
-		{
-			spi_single_write(hspi, address_packet, fill_char);
-			temp_counter++;
-		}
+ 		spi_single_write(hspi, address_packet, data[i]);
+	}
+ 	if((get_irq2_register(hspi) & 0x00100000 )== 0x00100000)
+	{
+ 		//If Fifo is filled tell the higher level and adjust the tx_buffer.
+ 		return 1;
 	}
 	return 0;
 }
@@ -181,36 +185,92 @@ uint8_t change_opmode(SX1278 *radio, SPI_HandleTypeDef *hspi, radio_state new_mo
 	return 1;
 }
 
+void packet(radio* radio, uint8_t *dat)
+{
+	uint8_t packet_to_send[DATA_SIZE];
+	uint8_t remaining = radio->tx_buffer_size - radio->tx_buffer_prog;
+	if(remaining > DATA_SIZE)
+	{
+		memcpy(packet_to_send, &(radio->tx_buffer[radio->tx_buffer_prog]), DATA_SIZE);
+		radio->tx_buffer_prog += DATA_SIZE;
+	}
+	else if(remaining == DATA_SIZE)
+	{
+		//If there are 64 bytes of data left in the buffer just return the buffer
+		memcpy(packet_to_send, &(radio->tx_buffer[radio->tx_buffer_prog]), DATA_SIZE);
+		//This is last packet in buffer take out of tx
+		radio->tx_buffer_size = 0;
+		radio->tx_buffer_prog = 0;
+		radio->tx_flags.tx_inp = 0;
+	}
+	else if(remaining < DATA_SIZE)
+	{
+		memcpy(packet_to_send, &(radio->tx_buffer[radio->tx_buffer_prog]), DATA_SIZE - remaining);
+		for(uint8_t place = remaining; place < DATA_SIZE; place++)
+		{
+			packet_to_send[place] = '\0';
+		}
+		//This is last packet in buffer take out of tx
+		radio->tx_buffer_size = 0;
+		radio->tx_buffer_prog = 0;
+		radio->tx_flags.tx_inp = 0;
+	}
+	memcpy(dat, packet_to_send, DATA_SIZE);
+}
 //This Function fills the FIFO with the input data and sets the opmode to transmit.
 //It will be up to the app to check when the tx is done.
-
-uint8_t sx1278_transmit(SX1278 *radio, SPI_HandleTypeDef *hspi, uint8_t  *data, uint8_t datalength)
-{
-	__attribute__((unused))
-	uint8_t fifo_status;
-	uint8_t fifod = 0;
-	sx1278_fifo_fill(hspi, data, datalength);
-	fifo_status = get_irq2_register(hspi);
-	if(fifo_status >= 0x20)
-	{
-		change_opmode(radio, hspi, TRANSMITTER);
-		fifod = 1;
-	}
-	return 0;
-}
-
 void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 {
-	switch(radio->radio)
+	switch(radio->sx_state)
 	{
 	case SLEEP:
 		break;
 	case STANDBY:
 		break;
 	case TRANSMITTER:
-		if(tx_flags.tx_init == 0)
+		if(radio->tx_flags.tx_init == 0)
 		{
-
+			// If the Radio has not been initialized for TX Set DIO  & FiFo thresh
+			//The Following Sets the TX Start to condition to anything above 0 & the thresh to datasize.
+			radio->radio.RegFifoThresh = RF_FIFOTHRESH_TXSTARTCONDITION_FIFONOTEMPTY | (DATA_SIZE-1);
+			spi_single_write(hspi, REG_FIFOTHRESH, radio->radio.RegFifoThresh);
+			change_opmode(&(radio->radio), hspi, TRANSMITTER);
+			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
+			radio->tx_flags.tx_init = 1;
+			//How my brain works fuck you
+			radio->tx_flags.tx_inp = 1;
+		}
+		else if(radio->tx_flags.tx_inp == 1)
+		{
+			uint8_t packet_to_send[64];
+			if(radio->tx_flags.tx_fifo_full == 0)
+			{
+				packet(radio, packet_to_send);
+				if(sx1278_fifo_fill(hspi, packet_to_send) == 1)
+				{
+					radio->tx_flags.tx_fifo_full = 1;
+				}
+				//Check if fifo is full
+			}
+			else if(radio->tx_flags.tx_fifo_full == 1)
+			{
+				//Check if fifo is empty and is ready to be written to
+				if((get_irq2_register(hspi) & 0x01000000 )== 0x01000000)
+				{
+					radio->tx_flags.tx_fifo_full = 0;
+				}
+			}
+		}
+		else
+		{
+			radio->tx_buffer_size = 0;
+			radio->tx_buffer_prog = 0;
+			radio->tx_flags.tx_init = 0;
+			radio->tx_flags.tx_inp = 0;
+			radio->tx_flags.tx_fifo_full = 0;
+			radio->sx_state = STANDBY;
+			change_opmode(&(radio->radio), hspi, STANDBY);
+			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
 		}
 		break;
 	case RECEIVER:
