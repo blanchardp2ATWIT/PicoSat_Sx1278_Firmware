@@ -1259,7 +1259,7 @@ typedef enum
 {
 	SLEEP = 0,
 	STANDBY = 1,
-	TRANSMITTER = 2,
+	TRANSMITTER = 3,
 	RECEIVER = 5,
 }radio_state;
 
@@ -1296,7 +1296,7 @@ uint8_t get_irq1_register(SPI_HandleTypeDef *hspi);
 uint8_t get_irq2_register(SPI_HandleTypeDef *hspi);
 uint8_t sx1278_init(radio *radio, SPI_HandleTypeDef *hspi);
 uint8_t sx1278_transmit(SX1278 *radio, SPI_HandleTypeDef *hspi, uint8_t  *data,uint8_t datalength);
-uint8_t change_opmode(SX1278 *radio, SPI_HandleTypeDef *hspi, radio_state new_mode);
+uint8_t change_opmode(radio *radio, SPI_HandleTypeDef *hspi, radio_state new_mode);
 void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi);
 
 #endif //1278

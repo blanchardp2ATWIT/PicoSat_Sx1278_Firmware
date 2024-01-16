@@ -61,18 +61,18 @@ uint8_t spi_single_read(SPI_HandleTypeDef *hspi, uint8_t address)
 void sx1278_struct_init(SX1278 *radio)
 {
 	//Common Settings
-	radio->RegOpMode |= RF_OPMODE_SLEEP | RF_OPMODE_FREQMODE_ACCESS_LF;
+	radio->RegOpMode |= RF_OPMODE_STANDBY | RF_OPMODE_FREQMODE_ACCESS_LF;
 	radio->RegBitrateMsb |= RF_BITRATEMSB_250000_BPS;
 	radio->RegBitrateLsb |= RF_BITRATELSB_250000_BPS;
 	//You Have to Calculate with Eqs on Datasheet
-	radio->RegFrfMsb = 0x6c;
-	radio->RegFrfMid = 0x80;
-	radio->RegFrfLsb = 0x00;
+//	radio->RegFrfMsb = 0x6c;
+//	radio->RegFrfMid = 0x80;
+//	radio->RegFrfLsb = 0x00;
 	//TX/RX Settings
 	radio->RegPaConfig |= RF_PACONFIG_PASELECT_RFO | 0x04 | 0x0f;
 	radio->RegPaRamp |= 0x00;
 	radio->RegLna |= RF_LNA_GAIN_G6;
-	radio->RegFdevMsb |= 0b00111010;
+//	radio->RegFdevMsb |= 0b00111010;
 	//TCXO Settings:
 	radio->RegTcxo = RF_TCXO_TCXOINPUT_ON;
 	radio->RegFifoThresh |=  0x0b00111111;
@@ -137,6 +137,7 @@ uint8_t sx1278_init(radio *radio, SPI_HandleTypeDef *hspi)
 	timeout_counter = 0;
 	stat = 0;
 	sx1278_struct_init(&(radio->radio));
+	radio->sx_state = STANDBY;
 	while(stat == 0 && timeout_counter < TIMEOUT_COUNTER_LIM)
 	{
 		timeout_counter++;
@@ -165,13 +166,13 @@ uint8_t sx1278_fifo_fill(SPI_HandleTypeDef *hspi, uint8_t* data)
 	return 0;
 }
 
-uint8_t change_opmode(SX1278 *radio, SPI_HandleTypeDef *hspi, radio_state new_mode)
+uint8_t change_opmode(radio *radio, SPI_HandleTypeDef *hspi, radio_state new_mode)
 {
 	uint8_t timeout_counter = 0;
 	uint8_t stat = 0;
 	while(stat == 0 && timeout_counter < TIMEOUT_COUNTER_LIM)
 	{
-		stat = sx1278_read_all_registers(radio, hspi);
+		stat = sx1278_read_all_registers(&(radio->radio), hspi);
 		timeout_counter++;
 		if(timeout_counter == TIMEOUT_COUNTER_LIM-1)
 		{
@@ -180,8 +181,9 @@ uint8_t change_opmode(SX1278 *radio, SPI_HandleTypeDef *hspi, radio_state new_mo
 	}
 	uint8_t temp_mode = RF_OPMODE_MODULATIONTYPE_FSK |
 			RF_OPMODE_FREQMODE_ACCESS_LF |new_mode;
-	radio->RegOpMode = temp_mode;
-	spi_single_write(hspi, REG_OPMODE, (radio->RegOpMode));
+	radio->radio.RegOpMode = temp_mode;
+	radio->sx_state = new_mode;
+	spi_single_write(hspi, REG_OPMODE, (radio->radio.RegOpMode));
 	return 1;
 }
 
@@ -234,8 +236,7 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 			//The Following Sets the TX Start to condition to anything above 0 & the thresh to datasize.
 			radio->radio.RegFifoThresh = RF_FIFOTHRESH_TXSTARTCONDITION_FIFONOTEMPTY | (DATA_SIZE-1);
 			spi_single_write(hspi, REG_FIFOTHRESH, radio->radio.RegFifoThresh);
-			change_opmode(&(radio->radio), hspi, TRANSMITTER);
-			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
+			change_opmode(radio, hspi, TRANSMITTER);
 			radio->tx_flags.tx_init = 1;
 			//How my brain works fuck you
 			radio->tx_flags.tx_inp = 1;
@@ -269,8 +270,7 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 			radio->tx_flags.tx_inp = 0;
 			radio->tx_flags.tx_fifo_full = 0;
 			radio->sx_state = STANDBY;
-			change_opmode(&(radio->radio), hspi, STANDBY);
-			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
+			change_opmode(radio, hspi, STANDBY);
 		}
 		break;
 	case RECEIVER:

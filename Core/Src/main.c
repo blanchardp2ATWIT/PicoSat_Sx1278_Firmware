@@ -51,7 +51,7 @@ TIM_HandleTypeDef htim1;
 radio r;
 
 __attribute__((unused))
-uint8_t data[] = "Hello World";
+uint8_t data[] = "Hello World, this is an excitation from the last bee movie released circa twenty millioon yuears ago.";
 
 /* USER CODE END PV */
 
@@ -113,9 +113,9 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Init(&htim1);
-//  HAL_TIM_Base_Start_IT(&htim1);
+  HAL_TIM_Base_Start_IT(&htim1);
   sx1278_init(&r, &hspi1);
-  tmp_tx(&r, &hspi1, data, sizeof(data));
+
   /* USER CODE END 2 */
 
   /* Infinite loop */

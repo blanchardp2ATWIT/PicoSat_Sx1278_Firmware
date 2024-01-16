@@ -7,7 +7,7 @@
 ../Core/Src/sx1278.c:100:9:sx1278_write_all_registers	40	static
 ../Core/Src/sx1278.c:115:6:sx1278_mem_init	16	static
 ../Core/Src/sx1278.c:124:9:sx1278_init	32	static
-../Core/Src/sx1278.c:153:9:sx1278_fifo_fill	32	static
-../Core/Src/sx1278.c:168:9:change_opmode	40	static
-../Core/Src/sx1278.c:188:6:packet	96	static
-../Core/Src/sx1278.c:222:6:SX1278_APP	88	static
+../Core/Src/sx1278.c:154:9:sx1278_fifo_fill	32	static
+../Core/Src/sx1278.c:169:9:change_opmode	40	static
+../Core/Src/sx1278.c:190:6:packet	96	static
+../Core/Src/sx1278.c:224:6:SX1278_APP	88	static
