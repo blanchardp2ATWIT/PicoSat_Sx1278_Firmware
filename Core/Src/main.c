@@ -74,12 +74,15 @@ void tmp_tx(radio *r, SPI_HandleTypeDef *hspi, uint8_t *data, uint8_t data_size)
 	r->tx_buffer_size = data_size;
 }
 
+void tmp_rx(radio *r, SPI_HandleTypeDef *hspi)
+{
+	r->sx_state = RECEIVER;
+}
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	tmp_tx(&r, &hspi1, data, sizeof(data));
 }
 
 /* USER CODE END 0 */
-//00011001
 /**
   * @brief  The application entry point.
   * @retval int

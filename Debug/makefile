@@ -1,6 +1,6 @@
 ################################################################################
 # Automatically-generated file. Do not edit!
-# Toolchain: GNU Tools for STM32 (11.3.rel1)
+# Toolchain: GNU Tools for STM32 (10.3-2021.10)
 ################################################################################
 
 -include ../makefile.init
@@ -60,8 +60,8 @@ all: main-build
 main-build: Transmission_FW.elf secondary-outputs
 
 # Tool invocations
-Transmission_FW.elf Transmission_FW.map: $(OBJS) $(USER_OBJS) C:\Users\Patrick\Desktop\Pico\ Repo\PicoSat_Sx1278_Firmware\STM32F031K6TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "Transmission_FW.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0 -T"C:\Users\Patrick\Desktop\Pico Repo\PicoSat_Sx1278_Firmware\STM32F031K6TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Transmission_FW.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Transmission_FW.elf Transmission_FW.map: $(OBJS) $(USER_OBJS) C:\Users\blanchardp2\Desktop\FW\ Dev\PicoSat_Sx1278_Firmware\STM32F031K6TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "Transmission_FW.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0 -T"C:\Users\blanchardp2\Desktop\FW Dev\PicoSat_Sx1278_Firmware\STM32F031K6TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Transmission_FW.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

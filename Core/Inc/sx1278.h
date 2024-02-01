@@ -1266,26 +1266,32 @@ typedef enum
 typedef struct
 {
 	//Setting Fifo Thresh and Filling it.
-
 	uint8_t tx_init;
 	uint8_t tx_inp;
 	uint8_t tx_fifo_full;
-}tx_flags;
+}tx_state_flags;
 
-typedef enum
+typedef struct
 {
-	bad,
+	uint8_t rx_init;
+	uint8_t rx_gain;
+	uint8_t rx_running;
+	uint8_t rx_halt;
+	uint8_t preamble_detected;
+
 }rx_flags;
 //Master Control Struct for the Radio
 typedef struct
 {
 	SX1278 radio;
 	radio_state sx_state;
-	tx_flags tx_flags;
+	tx_state_flags tx_state_flags;
 	uint8_t tx_buffer[1024];
 	uint8_t tx_buffer_size;
 	uint8_t tx_buffer_prog;
-
+	rx_flags rx_flags;
+	uint8_t rx_buffer[1024];
+	uint8_t rx_buffer_size;
 }radio;
 
 

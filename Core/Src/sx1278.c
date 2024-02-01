@@ -2,7 +2,7 @@
  * sx1278.c
  *
  *  Created on: Nov 18, 2023
- *      Author: Patrick
+ *      Author: Patrick Blanchard
  */
 #include <stdint.h>
 #include <stdbool.h>
@@ -18,7 +18,33 @@
 #define WRITE_MASK 0b10000000
 #define READ_MASK 0b01111111
 
-#define DATA_SIZE 0x40
+#define DATA_SIZE 0x20
+
+//Reg irq 2 flags
+#define FIFO_FULL 		0b10000000
+#define FIFO_EMPTY 		0b01000000
+#define FIFO_LEVEL 		0b00100000
+#define FIFO_OVERRUN	0b00010000
+#define PACKET_SENT		0b00001000
+#define PAYLOAD_READY	0b00000100
+#define CRC_OK			0b00000010
+#define LOW_BAT			0b00000001
+
+//Ref irq 1 flags
+#define MODE_READY 		0b10000000
+#define RX_READY 		0b01000000
+#define TX_READY 		0b00100000
+#define PLL_LOCK		0b00010000
+#define RSSI			0b00001000
+#define TIMEOUT			0b00000100
+#define PREAMBLE_DETECT	0b00000010
+#define SYNC_ADDRESS	0b00000001
+
+//2 Byte Preamble Size
+#define PREAMBLE_SIZE_MSB 	0x00
+#define PREAMBLE_SIZE_LSB	0x02
+
+
 
 //Gets the IRQ2 Register Status
 uint8_t get_irq1_register(SPI_HandleTypeDef *hspi)
@@ -64,18 +90,41 @@ void sx1278_struct_init(SX1278 *radio)
 	radio->RegOpMode |= RF_OPMODE_STANDBY | RF_OPMODE_FREQMODE_ACCESS_LF;
 	radio->RegBitrateMsb |= RF_BITRATEMSB_250000_BPS;
 	radio->RegBitrateLsb |= RF_BITRATELSB_250000_BPS;
+
 	//You Have to Calculate with Eqs on Datasheet
-//	radio->RegFrfMsb = 0x6c;
-//	radio->RegFrfMid = 0x80;
-//	radio->RegFrfLsb = 0x00;
-	//TX/RX Settings
-	radio->RegPaConfig |= RF_PACONFIG_PASELECT_RFO | 0x04 | 0x0f;
-	radio->RegPaRamp |= 0x00;
-	radio->RegLna |= RF_LNA_GAIN_G6;
-//	radio->RegFdevMsb |= 0b00111010;
+	radio->RegFrfMsb = 0x6c;
+	radio->RegFrfMid = 0x80;
+	radio->RegFrfLsb = 0x00;
+
+	//TX Settings:
+	radio->RegPaConfig = 0b01110011;
+	radio->RegPaRamp = 0b00000101;
+	radio->RegOcp = 0b0001011;
+
+	//RX Settings:
+	radio->RegLna = 0b11100000;
+	radio->RegRxConfig = 0b10000100;
+	radio->RegRssiConfig = 0b00000000;
+
+	//There is an Rssi Threshold Reg
+	//Have to change pre-amble detect when changing preamble
+	radio->RegPreambleDetect = 0b10101010;
+	radio->RegPreambleMsb = PREAMBLE_SIZE_MSB;
+	radio->RegPreambleLsb = PREAMBLE_SIZE_LSB;
+
 	//TCXO Settings:
 	radio->RegTcxo = RF_TCXO_TCXOINPUT_ON;
 	radio->RegFifoThresh |=  0x0b00111111;
+
+	//Packet Settings
+	//Fixed Packet Length of 32 Bytes.
+	//CRC ON
+	radio->RegPacketConfig1 = 0b00011000;
+	radio->RegPacketConfig2 = 0b10000000;
+	radio->RegPayloadLength = 0b01000000;
+	radio->RegFifoThresh = RF_FIFOTHRESH_TXSTARTCONDITION_FIFOTHRESH | (DATA_SIZE-1);
+	//Turning Sync Word Off
+	radio->RegSyncConfig = 0b0100000;
 }
 
 //This gets the status of all registers.
@@ -115,9 +164,12 @@ uint8_t sx1278_write_all_registers(SX1278 *radio, SPI_HandleTypeDef *hspi)
 void sx1278_mem_init(SPI_HandleTypeDef *hspi, radio *radio)
 {
 	// Set for the SX App
-	radio->tx_flags.tx_init = 0;
-	radio->tx_flags.tx_inp= 0;
+	radio->tx_state_flags.tx_init = 0;
+	radio->tx_state_flags.tx_inp= 0;
 	radio->tx_buffer_prog = 0;
+	radio->rx_flags.rx_init = 0;
+	radio->rx_flags.rx_gain = 0x00;
+	radio->rx_flags.rx_running = 0;
 }
 
 //General Init Function for the Module.
@@ -166,6 +218,21 @@ uint8_t sx1278_fifo_fill(SPI_HandleTypeDef *hspi, uint8_t* data)
 	return 0;
 }
 
+void sx1278_fifo_dump(SPI_HandleTypeDef *hspi, radio *radio)
+{
+	if(get_irq2_register(hspi) & FIFO_EMPTY)
+	{
+		//if fifo is empty return from function
+		return;
+	}
+	while(!(get_irq2_register(hspi) & FIFO_EMPTY))
+	{
+		radio->rx_buffer[radio->rx_buffer_size] = spi_single_read(hspi, REG_FIFO);
+		radio->rx_buffer_size ++;
+	}
+
+}
+
 uint8_t change_opmode(radio *radio, SPI_HandleTypeDef *hspi, radio_state new_mode)
 {
 	uint8_t timeout_counter = 0;
@@ -203,7 +270,7 @@ void packet(radio* radio, uint8_t *dat)
 		//This is last packet in buffer take out of tx
 		radio->tx_buffer_size = 0;
 		radio->tx_buffer_prog = 0;
-		radio->tx_flags.tx_inp = 0;
+		radio->tx_state_flags.tx_inp = 0;
 	}
 	else if(remaining < DATA_SIZE)
 	{
@@ -215,7 +282,7 @@ void packet(radio* radio, uint8_t *dat)
 		//This is last packet in buffer take out of tx
 		radio->tx_buffer_size = 0;
 		radio->tx_buffer_prog = 0;
-		radio->tx_flags.tx_inp = 0;
+		radio->tx_state_flags.tx_inp = 0;
 	}
 	memcpy(dat, packet_to_send, DATA_SIZE);
 }
@@ -230,35 +297,40 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 	case STANDBY:
 		break;
 	case TRANSMITTER:
-		if(radio->tx_flags.tx_init == 0)
+		if(radio->tx_state_flags.tx_init == 0)
 		{
-			// If the Radio has not been initialized for TX Set DIO  & FiFo thresh
-			//The Following Sets the TX Start to condition to anything above 0 & the thresh to datasize.
-			radio->radio.RegFifoThresh = RF_FIFOTHRESH_TXSTARTCONDITION_FIFONOTEMPTY | (DATA_SIZE-1);
-			spi_single_write(hspi, REG_FIFOTHRESH, radio->radio.RegFifoThresh);
+			//I will have more to do here.
 			change_opmode(radio, hspi, TRANSMITTER);
-			radio->tx_flags.tx_init = 1;
-			//How my brain works fuck you
-			radio->tx_flags.tx_inp = 1;
+			if(get_irq1_register(hspi) & 0b00100000)
+			{
+				radio->tx_state_flags.tx_init = 1;
+				radio->tx_state_flags.tx_inp = 1;
+			}
 		}
-		else if(radio->tx_flags.tx_inp == 1)
+		else if(radio->tx_state_flags.tx_inp == 1)
 		{
-			uint8_t packet_to_send[64];
-			if(radio->tx_flags.tx_fifo_full == 0)
+			uint8_t packet_to_send[DATA_SIZE];
+			if(radio->tx_state_flags.tx_fifo_full == 0)
 			{
 				packet(radio, packet_to_send);
 				if(sx1278_fifo_fill(hspi, packet_to_send) == 1)
 				{
-					radio->tx_flags.tx_fifo_full = 1;
+					radio->tx_state_flags.tx_fifo_full = 1;
 				}
 				//Check if fifo is full
 			}
-			else if(radio->tx_flags.tx_fifo_full == 1)
+			else if(radio->tx_state_flags.tx_fifo_full == 1)
 			{
 				//Check if fifo is empty and is ready to be written to
 				if((get_irq2_register(hspi) & 0x01000000 )== 0x01000000)
 				{
-					radio->tx_flags.tx_fifo_full = 0;
+					radio->tx_state_flags.tx_fifo_full = 0;
+					//If the fifo is empty here check if there is more information to tramsit. If not break from transmit and go to sleep.
+					if(radio->tx_buffer_prog == 0)
+					{
+						// Here Both tx_init == 1 and tx_inp = 0 Indicating it is done with a transfer cycle.
+						radio->tx_state_flags.tx_inp = 0;
+					}
 				}
 			}
 		}
@@ -266,22 +338,37 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 		{
 			radio->tx_buffer_size = 0;
 			radio->tx_buffer_prog = 0;
-			radio->tx_flags.tx_init = 0;
-			radio->tx_flags.tx_inp = 0;
-			radio->tx_flags.tx_fifo_full = 0;
+			radio->tx_state_flags.tx_init = 0;
+			radio->tx_state_flags.tx_inp = 0;
+			radio->tx_state_flags.tx_fifo_full = 0;
 			radio->sx_state = STANDBY;
 			change_opmode(radio, hspi, STANDBY);
 		}
 		break;
 	case RECEIVER:
+		if(radio->rx_flags.rx_init == 0)
+		{
+			// Get Radio Ready for Rx
+			radio->rx_flags.rx_init = 1;
+			change_opmode(radio, hspi, RECEIVER);
+		}
+		if(radio->rx_flags.rx_running)
+		{
+			while(get_irq1_register(hspi) & PREAMBLE_DETECT)
+			{
+				//This fills the rx_buffer with the data from the fifo.
+				sx1278_fifo_dump(hspi, radio);
+				//After Handling the Packet from the Preabmle set it back to zero to check again.
+				spi_single_write(hspi, REG_IRQFLAGS1, PREAMBLE_DETECT);
+			}
+		}
 		break;
 	}
-
 }
 
 /*
  * sx1278.c
  *
  *  Created on: Nov 18, 2023
- *      Author: Patrick
+ *      Author: Patrick Blanchard
  */
