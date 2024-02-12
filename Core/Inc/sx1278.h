@@ -1286,11 +1286,11 @@ typedef struct
 	SX1278 radio;
 	radio_state sx_state;
 	tx_state_flags tx_state_flags;
-	uint8_t tx_buffer[1024];
+	uint8_t tx_buffer[128];
 	uint8_t tx_buffer_size;
 	uint8_t tx_buffer_prog;
 	rx_flags rx_flags;
-	uint8_t rx_buffer[1024];
+	uint8_t rx_buffer[128];
 	uint8_t rx_buffer_size;
 }radio;
 

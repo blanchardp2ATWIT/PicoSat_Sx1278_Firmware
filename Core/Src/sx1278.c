@@ -111,20 +111,21 @@ void sx1278_struct_init(SX1278 *radio)
 	radio->RegPreambleDetect = 0b10101010;
 	radio->RegPreambleMsb = PREAMBLE_SIZE_MSB;
 	radio->RegPreambleLsb = PREAMBLE_SIZE_LSB;
+	//Turning Sync Word Off
+	radio->RegSyncConfig = 0b01010001;
+	radio->RegSyncValue1 = 0xAF;
+	radio->RegSyncValue2 = 0xFA;
 
 	//TCXO Settings:
 	radio->RegTcxo = RF_TCXO_TCXOINPUT_ON;
-	radio->RegFifoThresh |=  0x0b00111111;
 
 	//Packet Settings
 	//Fixed Packet Length of 32 Bytes.
 	//CRC ON
 	radio->RegPacketConfig1 = 0b00011000;
-	radio->RegPacketConfig2 = 0b10000000;
-	radio->RegPayloadLength = 0b01000000;
+	radio->RegPacketConfig2 = 0b01000000;
+	radio->RegPayloadLength = 0b00100000;
 	radio->RegFifoThresh = RF_FIFOTHRESH_TXSTARTCONDITION_FIFOTHRESH | (DATA_SIZE-1);
-	//Turning Sync Word Off
-	radio->RegSyncConfig = 0b0100000;
 }
 
 //This gets the status of all registers.
@@ -313,11 +314,11 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 			if(radio->tx_state_flags.tx_fifo_full == 0)
 			{
 				packet(radio, packet_to_send);
+				//Check if fifo is full
 				if(sx1278_fifo_fill(hspi, packet_to_send) == 1)
 				{
 					radio->tx_state_flags.tx_fifo_full = 1;
 				}
-				//Check if fifo is full
 			}
 			else if(radio->tx_state_flags.tx_fifo_full == 1)
 			{
@@ -349,12 +350,22 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 		if(radio->rx_flags.rx_init == 0)
 		{
 			// Get Radio Ready for Rx
+			//FIFO must be clear here. Put logic in later.
+			//When reading from fifo make sure it is not empty each time.
+
 			radio->rx_flags.rx_init = 1;
+			radio->rx_flags.rx_running = 1;
 			change_opmode(radio, hspi, RECEIVER);
+
 		}
 		if(radio->rx_flags.rx_running)
 		{
-			while(get_irq1_register(hspi) & PREAMBLE_DETECT)
+			uint8_t temp = get_irq1_register(hspi);
+			uint8_t temp2 = get_irq2_register(hspi);
+			uint8_t op = spi_single_read(hspi, REG_OPMODE);
+			uint8_t fifo_thres = spi_single_read(hspi, REG_FIFOTHRESH);
+
+			if((temp & PREAMBLE_DETECT) == PREAMBLE_DETECT)
 			{
 				//This fills the rx_buffer with the data from the fifo.
 				sx1278_fifo_dump(hspi, radio);
