@@ -6,10 +6,9 @@
 ../Core/Src/sx1278.c:122:9:sx1278_read_all_registers	3
 ../Core/Src/sx1278.c:138:9:sx1278_write_all_registers	3
 ../Core/Src/sx1278.c:153:6:sx1278_mem_init	1
-../Core/Src/sx1278.c:163:9:sx1278_init	7
-../Core/Src/sx1278.c:193:9:sx1278_fifo_fill	3
-../Core/Src/sx1278.c:208:6:sx1278_fifo_dump	3
-../Core/Src/sx1278.c:223:9:change_opmode	4
-../Core/Src/sx1278.c:244:6:rx_reset	1
-../Core/Src/sx1278.c:250:6:packet	5
-../Core/Src/sx1278.c:284:6:SX1278_APP	20
+../Core/Src/sx1278.c:164:9:sx1278_init	7
+../Core/Src/sx1278.c:194:9:sx1278_fifo_fill	3
+../Core/Src/sx1278.c:209:6:sx1278_fifo_dump	3
+../Core/Src/sx1278.c:224:9:change_opmode	4
+../Core/Src/sx1278.c:246:6:packet	5
+../Core/Src/sx1278.c:280:6:SX1278_APP	19
