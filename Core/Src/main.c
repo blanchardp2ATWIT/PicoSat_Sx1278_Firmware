@@ -75,7 +75,6 @@ void tmp_tx(radio *r, SPI_HandleTypeDef *hspi, uint8_t *data, uint8_t data_size)
 {
 	r->sx_state = TRANSMITTER;
 	memcpy(r->tx_buffer, data, data_size);
-	r->tx_buffer_size = data_size;
 	HAL_UART_Transmit_IT(&huart1, tx_mesg, sizeof(tx_mesg));
 }
 
@@ -124,9 +123,9 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Init(&htim1);
-//  HAL_TIM_Base_Start_IT(&htim1);
+  HAL_TIM_Base_Start_IT(&htim1);
   sx1278_init(&r, &hspi1);
-  tmp_rx(&r, &hspi1);
+//  tmp_rx(&r, &hspi1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -308,7 +307,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 100;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 65535;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;

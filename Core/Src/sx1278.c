@@ -158,6 +158,7 @@ void sx1278_mem_init(SPI_HandleTypeDef *hspi, radio *radio)
 	radio->tx_buffer_prog = 0;
 	radio->rx_flags.rx_init = 0;
 	radio->rx_flags.rx_running = 0;
+	radio->rx_flags.rx_stay = 1;
 }
 //General Init Function for the Module.
 uint8_t sx1278_init(radio *radio, SPI_HandleTypeDef *hspi)
@@ -363,14 +364,9 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 			if((get_irq2_register(hspi) & PAYLOAD_READY) == PAYLOAD_READY)
 			{
 				sx1278_fifo_dump(hspi, radio);
-				if(radio->rx_flags.rx_stay)
+				if(!radio->rx_flags.rx_stay)
 				{
-					//Stay in Rx Mode Clear The Fifo and reset the RX system
-
-				}
-				else
-				{
-					//Go to sleep mode.
+					//if not stay go standby
 					change_opmode(radio, hspi, STANDBY);
 				}
 			}
