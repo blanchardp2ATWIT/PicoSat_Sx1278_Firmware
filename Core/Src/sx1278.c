@@ -159,7 +159,6 @@ void sx1278_mem_init(SPI_HandleTypeDef *hspi, radio *radio)
 	radio->tx_state_flags.tx_inp= 0;
 	radio->tx_buffer_prog = 0;
 	radio->rx_flags.rx_init = 0;
-	radio->rx_flags.rx_gain = 0x00;
 	radio->rx_flags.rx_running = 0;
 }
 //General Init Function for the Module.

@@ -1274,10 +1274,7 @@ typedef struct
 typedef struct
 {
 	uint8_t rx_init;
-	uint8_t rx_gain;
 	uint8_t rx_running;
-	uint8_t rx_halt;
-	uint8_t preamble_detected;
 	uint8_t rx_stay;
 
 }rx_flags;
