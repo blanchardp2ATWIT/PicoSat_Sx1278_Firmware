@@ -54,7 +54,7 @@ UART_HandleTypeDef huart1;
 radio r;
 
 __attribute__((unused))
-uint8_t data[] = "Hello World, this is an excitation from the last bee movie released circa twenty millioon yuears ago.";
+uint8_t data[] = "$uicide Boys no we still breathn$uicide Boys no we still breathn";
 uint8_t tx_mesg[] = "Packet Sent...\n";
 /* USER CODE END PV */
 

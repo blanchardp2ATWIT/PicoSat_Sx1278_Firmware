@@ -8,7 +8,7 @@
 #define CHIP_VERSION 0x12
 #define REGISTER_COUNT 0x70
 #define TIMEOUT_COUNTER_LIM 101
-#define PACKET_LENGTH 64
+#define DATA_SIZE 0x40
 
 
 ///\ SX1276 Internal registers Address
@@ -1284,11 +1284,11 @@ typedef struct
 	SX1278 radio;
 	radio_state sx_state;
 	tx_state_flags tx_state_flags;
-	uint8_t tx_buffer[128];
+	uint8_t tx_buffer[DATA_SIZE];
 	uint8_t tx_buffer_size;
 	uint8_t tx_buffer_prog;
 	rx_flags rx_flags;
-	uint8_t rx_buffer[128];
+	uint8_t rx_buffer[DATA_SIZE];
 	uint8_t rx_buffer_size;
 }radio;
 

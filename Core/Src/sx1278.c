@@ -18,8 +18,6 @@
 #define WRITE_MASK 0b10000000
 #define READ_MASK 0b01111111
 
-#define DATA_SIZE 0x20
-
 //Reg irq 2 flags
 #define FIFO_FULL 		0b10000000
 #define FIFO_EMPTY 		0b01000000
@@ -242,6 +240,12 @@ uint8_t change_opmode(radio *radio, SPI_HandleTypeDef *hspi, radio_state new_mod
 	spi_single_write(hspi, REG_OPMODE, (radio->radio.RegOpMode));
 	return 1;
 }
+
+void rx_reset(SPI_HandleTypeDef *hspi, radio *radio)
+{
+
+}
+
 //This Gets rid of the sent data before it is confirmed. will have to change later.
 void packet(radio* radio, uint8_t *dat)
 {
@@ -337,7 +341,7 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 	case RECEIVER:
 		if(radio->rx_flags.rx_init == 0)
 		{
-			// Get Radio Ready for Rx
+			//Get Radio Ready for Rx
 			//FIFO must be clear here. Put logic in later.
 			//When reading from fifo make sure it is not empty each time.
 			radio->rx_flags.rx_init = 1;
