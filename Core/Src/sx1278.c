@@ -89,7 +89,7 @@ void sx1278_struct_init(SX1278 *radio)
 
 	//TX Settings:
 	radio->RegPaConfig = 0b01110011;
-	radio->RegPaRamp = 0b00000101;
+	radio->RegPaRamp = 0b00001111;
 	radio->RegOcp = 0b0001011;
 
 	//RX Settings:
@@ -214,7 +214,7 @@ void sx1278_fifo_dump(SPI_HandleTypeDef *hspi, radio *radio)
 		radio->rx_buffer[radio->rx_buffer_size] = spi_single_read(hspi, REG_FIFO);
 		radio->rx_buffer_size ++;
 	}
-
+	radio->rx_buffer_size = 0;
 }
 //Change the Opmode of the device
 uint8_t change_opmode(radio *radio, SPI_HandleTypeDef *hspi, radio_state new_mode)
@@ -250,37 +250,37 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 	case TRANSMITTER:
 		if(!radio->tx_state_flags.tx_init)
 		{
-			//Initialize Tx Here. Prefill FiFo.
-			uint8_t temp;
+			//Make Fifo Thresh Packet_Size-1
+			radio->radio.RegFifoThresh = RF_FIFOTHRESH_TXSTARTCONDITION_FIFOTHRESH | (DATA_SIZE-1);
+			spi_single_write(hspi, REG_FIFOTHRESH, radio->radio.RegFifoThresh);
+			//Fill The Fifo
 			sx1278_fifo_fill(hspi, radio->tx_buffer);
 			radio->tx_state_flags.tx_packet_sent = 0;
-			temp = get_irq2_register(hspi);
-			if((temp & FIFO_LEVEL) == FIFO_LEVEL)
+			//Check to Make Sure FiFo has been fully Filled
+			if((get_irq2_register(hspi) & FIFO_LEVEL) == FIFO_LEVEL)
 			{
 				//Fifo is Prefilled ready to transmit package.
 				radio->tx_state_flags.tx_init = 1;
+				//Change Module to Transmit and Tell Higher Level TX inprogress
+				change_opmode(radio, hspi, TRANSMITTER);
+				radio->tx_state_flags.tx_inp = 1;
 			}
-		}
-		else if(radio->tx_state_flags.tx_init && !radio->tx_state_flags.tx_inp && !radio->tx_state_flags.tx_packet_sent)
-		{
-			change_opmode(radio, hspi, TRANSMITTER);
-			radio->tx_state_flags.tx_inp = 1;
 		}
 		else if(radio->tx_state_flags.tx_init && radio->tx_state_flags.tx_inp && !radio->tx_state_flags.tx_packet_sent)
 		{
+			//If Packet is sent
 			if((get_irq2_register(hspi) & PACKET_SENT) == PACKET_SENT)
 			{
-				//will not change until another packet is going to be sent
+				//This Will Not Change until another packet is attempted to send
 				radio->tx_state_flags.tx_packet_sent = 1;
+				//Change Module to Standby Mode because packet is sense
+				change_opmode(radio, hspi, STANDBY);
+				//No longer in TX and must be re-initialized.
+				radio->tx_state_flags.tx_init = 0;
+				radio->tx_state_flags.tx_inp = 0;
 			}
 		}
-		else if(radio->tx_state_flags.tx_packet_sent)
-		{
-			//Successfully sent from transmitter. Take out of transmit mode.
-			change_opmode(radio, hspi, STANDBY);
-			radio->tx_state_flags.tx_init = 0;
-			radio->tx_state_flags.tx_inp = 0;
-		}
+
 		break;
 	case RECEIVER:
 		if(radio->rx_flags.rx_init == 0)

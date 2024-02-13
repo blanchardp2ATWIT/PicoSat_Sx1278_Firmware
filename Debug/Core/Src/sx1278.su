@@ -10,4 +10,4 @@
 ../Core/Src/sx1278.c:194:6:sx1278_fifo_fill	32	static
 ../Core/Src/sx1278.c:205:6:sx1278_fifo_dump	24	static
 ../Core/Src/sx1278.c:220:9:change_opmode	40	static
-../Core/Src/sx1278.c:242:6:SX1278_APP	32	static
+../Core/Src/sx1278.c:242:6:SX1278_APP	16	static
