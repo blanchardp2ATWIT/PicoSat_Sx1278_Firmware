@@ -1268,7 +1268,7 @@ typedef struct
 	//Setting Fifo Thresh and Filling it.
 	uint8_t tx_init;
 	uint8_t tx_inp;
-	uint8_t tx_fifo_full;
+	uint8_t tx_packet_sent;
 }tx_state_flags;
 
 typedef struct
@@ -1285,8 +1285,6 @@ typedef struct
 	radio_state sx_state;
 	tx_state_flags tx_state_flags;
 	uint8_t tx_buffer[DATA_SIZE];
-	uint8_t tx_buffer_size;
-	uint8_t tx_buffer_prog;
 	rx_flags rx_flags;
 	uint8_t rx_buffer[DATA_SIZE];
 	uint8_t rx_buffer_size;

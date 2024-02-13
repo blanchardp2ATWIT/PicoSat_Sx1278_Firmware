@@ -54,7 +54,7 @@ UART_HandleTypeDef huart1;
 radio r;
 
 __attribute__((unused))
-uint8_t data[] = "$uicide Boys no we still breathn$uicide Boys no we still breathn";
+uint8_t data[] = "$uicide Boys no we still breathn$uicide Boys no we still breathn\0\0\0\0\0";
 uint8_t tx_mesg[] = "Packet Sent...\n";
 /* USER CODE END PV */
 
@@ -123,9 +123,9 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Init(&htim1);
-  HAL_TIM_Base_Start_IT(&htim1);
+//  HAL_TIM_Base_Start_IT(&htim1);
   sx1278_init(&r, &hspi1);
-//  tmp_rx(&r, &hspi1);
+  tmp_rx(&r, &hspi1);
   /* USER CODE END 2 */
 
   /* Infinite loop */

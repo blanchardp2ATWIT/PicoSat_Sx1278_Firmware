@@ -114,7 +114,7 @@ void sx1278_struct_init(SX1278 *radio)
 	//CRC ON
 	radio->RegPacketConfig1 = 0b00011000;
 	radio->RegPacketConfig2 = 0b01000000;
-	radio->RegPayloadLength = 0b00100000;
+	radio->RegPayloadLength = 0b01000000;
 	radio->RegFifoThresh = RF_FIFOTHRESH_TXSTARTCONDITION_FIFOTHRESH | (DATA_SIZE-1);
 }
 //This gets the status of all registers.
@@ -155,7 +155,6 @@ void sx1278_mem_init(SPI_HandleTypeDef *hspi, radio *radio)
 	// Set for the SX App
 	radio->tx_state_flags.tx_init = 0;
 	radio->tx_state_flags.tx_inp= 0;
-	radio->tx_buffer_prog = 0;
 	radio->rx_flags.rx_init = 0;
 	radio->rx_flags.rx_running = 0;
 	radio->rx_flags.rx_stay = 1;
@@ -191,19 +190,15 @@ uint8_t sx1278_init(radio *radio, SPI_HandleTypeDef *hspi)
 	return 1;
 }
 //Usually used to fill the fifo for tx
-uint8_t sx1278_fifo_fill(SPI_HandleTypeDef *hspi, uint8_t* data)
+void sx1278_fifo_fill(SPI_HandleTypeDef *hspi, uint8_t* data)
 {
 	uint8_t address_packet = WRITE_MASK | REG_FIFO;
+	uint8_t temporary;
  	for(uint8_t i = 0; i < DATA_SIZE; i++)
 	{
- 		spi_single_write(hspi, address_packet, data[i]);
+ 		temporary = data[i];
+ 		spi_single_write(hspi, address_packet, temporary);
 	}
- 	if((get_irq2_register(hspi) & 0x00100000 )== 0x00100000)
-	{
- 		//If Fifo is filled tell the higher level and adjust the tx_buffer.
- 		return 1;
-	}
-	return 0;
 }
 //Used to dump the contents of the FiFo into the RX_BUFFER
 void sx1278_fifo_dump(SPI_HandleTypeDef *hspi, radio *radio)
@@ -241,45 +236,6 @@ uint8_t change_opmode(radio *radio, SPI_HandleTypeDef *hspi, radio_state new_mod
 	spi_single_write(hspi, REG_OPMODE, (radio->radio.RegOpMode));
 	return 1;
 }
-
-void rx_reset(SPI_HandleTypeDef *hspi, radio *radio)
-{
-
-}
-
-//This Gets rid of the sent data before it is confirmed. will have to change later.
-void packet(radio* radio, uint8_t *dat)
-{
-	uint8_t packet_to_send[DATA_SIZE];
-	uint8_t remaining = radio->tx_buffer_size - radio->tx_buffer_prog;
-	if(remaining > DATA_SIZE)
-	{
-		memcpy(packet_to_send, &(radio->tx_buffer[radio->tx_buffer_prog]), DATA_SIZE);
-		radio->tx_buffer_prog += DATA_SIZE;
-	}
-	else if(remaining == DATA_SIZE)
-	{
-		//If there are 64 bytes of data left in the buffer just return the buffer
-		memcpy(packet_to_send, &(radio->tx_buffer[radio->tx_buffer_prog]), DATA_SIZE);
-		//This is last packet in buffer take out of tx
-		radio->tx_buffer_size = 0;
-		radio->tx_buffer_prog = 0;
-		radio->tx_state_flags.tx_inp = 0;
-	}
-	else if(remaining < DATA_SIZE)
-	{
-		memcpy(packet_to_send, &(radio->tx_buffer[radio->tx_buffer_prog]), DATA_SIZE - remaining);
-		for(uint8_t place = remaining; place < DATA_SIZE; place++)
-		{
-			packet_to_send[place] = '\0';
-		}
-		//This is last packet in buffer take out of tx
-		radio->tx_buffer_size = 0;
-		radio->tx_buffer_prog = 0;
-		radio->tx_state_flags.tx_inp = 0;
-	}
-	memcpy(dat, packet_to_send, DATA_SIZE);
-}
 //This Function fills the FIFO with the input data and sets the opmode to transmit.
 //It will be up to the app to check when the tx is done.
 void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
@@ -291,52 +247,38 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 	case STANDBY:
 		break;
 	case TRANSMITTER:
-		if(radio->tx_state_flags.tx_init == 0)
+		if(!radio->tx_state_flags.tx_init)
 		{
-			//I will have more to do here.
-			change_opmode(radio, hspi, TRANSMITTER);
-			if((get_irq1_register(hspi) & TX_READY) == TX_READY)
+			//Initialize Tx Here. Prefill FiFo.
+			uint8_t temp;
+			sx1278_fifo_fill(hspi, radio->tx_buffer);
+			radio->tx_state_flags.tx_packet_sent = 0;
+			temp = get_irq2_register(hspi);
+			if((temp & FIFO_LEVEL) == FIFO_LEVEL)
 			{
+				//Fifo is Prefilled ready to transmit package.
 				radio->tx_state_flags.tx_init = 1;
-				radio->tx_state_flags.tx_inp = 1;
 			}
 		}
-		else if(radio->tx_state_flags.tx_inp == 1)
+		else if(radio->tx_state_flags.tx_init && !radio->tx_state_flags.tx_inp && !radio->tx_state_flags.tx_packet_sent)
 		{
-			uint8_t packet_to_send[DATA_SIZE];
-			if(radio->tx_state_flags.tx_fifo_full == 0)
+			change_opmode(radio, hspi, TRANSMITTER);
+			radio->tx_state_flags.tx_inp = 1;
+		}
+		else if(radio->tx_state_flags.tx_init && radio->tx_state_flags.tx_inp && !radio->tx_state_flags.tx_packet_sent)
+		{
+			if((get_irq2_register(hspi) & PACKET_SENT) == PACKET_SENT)
 			{
-				packet(radio, packet_to_send);
-				//Check if fifo is full
-				if(sx1278_fifo_fill(hspi, packet_to_send) == 1)
-				{
-					radio->tx_state_flags.tx_fifo_full = 1;
-				}
-			}
-			else if(radio->tx_state_flags.tx_fifo_full == 1)
-			{
-				//Check if fifo is empty and is ready to be written to
-				if((get_irq2_register(hspi) & FIFO_EMPTY )== FIFO_EMPTY)
-				{
-					//If the fifo is empty here check if there is more information to tramsit. If not break from transmit and go to sleep.
-					radio->tx_state_flags.tx_fifo_full = 0;
-					if(radio->tx_buffer_prog == 0)
-					{
-						// Here Both tx_init == 1 and tx_inp = 0 Indicating it is done with a transfer cycle.
-						radio->tx_state_flags.tx_inp = 0;
-					}
-				}
+				//will not change until another packet is going to be sent
+				radio->tx_state_flags.tx_packet_sent = 1;
 			}
 		}
-		else
+		else if(radio->tx_state_flags.tx_packet_sent)
 		{
-			radio->tx_buffer_size = 0;
-			radio->tx_buffer_prog = 0;
+			//Successfully sent from transmitter. Take out of transmit mode.
+			change_opmode(radio, hspi, STANDBY);
 			radio->tx_state_flags.tx_init = 0;
 			radio->tx_state_flags.tx_inp = 0;
-			radio->tx_state_flags.tx_fifo_full = 0;
-			radio->sx_state = STANDBY;
-			change_opmode(radio, hspi, STANDBY);
 		}
 		break;
 	case RECEIVER:
