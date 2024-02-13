@@ -4,6 +4,7 @@
  *  Created on: Nov 18, 2023
  *      Author: Patrick Blanchard
  */
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -208,7 +209,7 @@ void sx1278_fifo_dump(SPI_HandleTypeDef *hspi, radio *radio)
 		//if fifo is empty return from function
 		return;
 	}
-	while(!(get_irq2_register(hspi) & FIFO_EMPTY))
+	while((get_irq2_register(hspi) & FIFO_EMPTY) != FIFO_EMPTY)
 	{
 		radio->rx_buffer[radio->rx_buffer_size] = spi_single_read(hspi, REG_FIFO);
 		radio->rx_buffer_size ++;
@@ -306,6 +307,7 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 			if((get_irq2_register(hspi) & PAYLOAD_READY) == PAYLOAD_READY)
 			{
 				sx1278_fifo_dump(hspi, radio);
+//				printf("Packet Received...\n");
 				if(!radio->rx_flags.rx_stay)
 				{
 					//if not stay go standby
