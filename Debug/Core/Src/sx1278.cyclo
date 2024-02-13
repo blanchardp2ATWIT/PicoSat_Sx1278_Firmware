@@ -11,4 +11,4 @@
 ../Core/Src/sx1278.c:211:6:sx1278_fifo_dump	3
 ../Core/Src/sx1278.c:226:9:change_opmode	4
 ../Core/Src/sx1278.c:247:6:packet	5
-../Core/Src/sx1278.c:281:6:SX1278_APP	19
+../Core/Src/sx1278.c:281:6:SX1278_APP	20

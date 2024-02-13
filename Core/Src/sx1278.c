@@ -103,7 +103,7 @@ void sx1278_struct_init(SX1278 *radio)
 	radio->RegPreambleDetect = 0b10101010;
 	radio->RegPreambleMsb = PREAMBLE_SIZE_MSB;
 	radio->RegPreambleLsb = PREAMBLE_SIZE_LSB;
-	//Turning Sync Word Off
+	//Turning Sync Word Off //PREAMBLE POLARITY
 	radio->RegSyncConfig = 0b01010001;
 	radio->RegSyncValue1 = 0xAF;
 	radio->RegSyncValue2 = 0xFA;
@@ -346,7 +346,7 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 		}
 		else if(radio->rx_flags.rx_init && !(radio->rx_flags.rx_running))
 		{
-			if((get_irq1_register(hspi) & MODE_READY))
+			if((get_irq1_register(hspi) & RX_READY) == RX_READY)
 			{
 				radio->rx_flags.rx_running = 1;
 			}
@@ -360,6 +360,16 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 			if((get_irq2_register(hspi) & PAYLOAD_READY) == PAYLOAD_READY)
 			{
 				sx1278_fifo_dump(hspi, radio);
+				if(radio->rx_flags.rx_stay)
+				{
+					//Stay in Rx Mode Clear The Fifo and reset the RX system
+
+				}
+				else
+				{
+					//Go to sleep mode.
+					change_opmode(radio, hspi, STANDBY);
+				}
 			}
 		}
 		break;
