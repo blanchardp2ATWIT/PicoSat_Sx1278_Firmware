@@ -1268,6 +1268,7 @@ typedef struct
 	//Setting Fifo Thresh and Filling it.
 	uint8_t tx_init;
 	uint8_t tx_inp;
+	uint8_t tx_packet_start;
 	uint8_t tx_packet_sent;
 }tx_state_flags;
 
@@ -1288,6 +1289,8 @@ typedef struct
 	rx_flags rx_flags;
 	uint8_t rx_buffer[DATA_SIZE];
 	uint8_t rx_buffer_size;
+	//FOR DEBUGGING PURPOSES
+	UART_HandleTypeDef *huart;
 }radio;
 
 

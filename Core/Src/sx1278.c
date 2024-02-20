@@ -43,6 +43,8 @@
 #define PREAMBLE_SIZE_MSB 	0x00
 #define PREAMBLE_SIZE_LSB	0x02
 
+uint8_t tx_mesg[] = "\n\rPacket Sent...\r\n";
+
 //Gets the IRQ1 Register Status
 uint8_t get_irq1_register(SPI_HandleTypeDef *hspi)
 {
@@ -153,9 +155,12 @@ uint8_t sx1278_write_all_registers(SX1278 *radio, SPI_HandleTypeDef *hspi)
 //Initialize the Radio Object
 void sx1278_mem_init(SPI_HandleTypeDef *hspi, radio *radio)
 {
-	// Set for the SX App
+	//TX Flags
 	radio->tx_state_flags.tx_init = 0;
 	radio->tx_state_flags.tx_inp= 0;
+	radio->tx_state_flags.tx_packet_sent = 0;
+	radio->tx_state_flags.tx_packet_start = 0;
+	//RX Flags
 	radio->rx_flags.rx_init = 0;
 	radio->rx_flags.rx_running = 0;
 	radio->rx_flags.rx_stay = 1;
@@ -214,6 +219,8 @@ void sx1278_fifo_dump(SPI_HandleTypeDef *hspi, radio *radio)
 		radio->rx_buffer[radio->rx_buffer_size] = spi_single_read(hspi, REG_FIFO);
 		radio->rx_buffer_size ++;
 	}
+	//This Will Transmit Collected Packages over UART.
+	HAL_UART_Transmit(radio->huart, radio->rx_buffer, radio->rx_buffer_size, 100);
 	radio->rx_buffer_size = 0;
 }
 //Change the Opmode of the device
@@ -241,6 +248,7 @@ uint8_t change_opmode(radio *radio, SPI_HandleTypeDef *hspi, radio_state new_mod
 //It will be up to the app to check when the tx is done.
 void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 {
+//	radio->sx_state = spi_single_read(hspi, REG_OPMODE) & RF_OPMODE_MASK;
 	switch(radio->sx_state)
 	{
 	case SLEEP:
@@ -273,14 +281,15 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 			{
 				//This Will Not Change until another packet is attempted to send
 				radio->tx_state_flags.tx_packet_sent = 1;
-				//Change Module to Standby Mode because packet is sense
+				//Change Module to Standby Mode because packet is sent
 				change_opmode(radio, hspi, STANDBY);
 				//No longer in TX and must be re-initialized.
 				radio->tx_state_flags.tx_init = 0;
 				radio->tx_state_flags.tx_inp = 0;
+				//Debug Output
+				HAL_UART_Transmit(radio->huart, tx_mesg, strlen((char*)tx_mesg), 100);
 			}
 		}
-
 		break;
 	case RECEIVER:
 		if(radio->rx_flags.rx_init == 0)
@@ -307,7 +316,6 @@ void SX1278_APP(radio *radio, SPI_HandleTypeDef *hspi)
 			if((get_irq2_register(hspi) & PAYLOAD_READY) == PAYLOAD_READY)
 			{
 				sx1278_fifo_dump(hspi, radio);
-//				printf("Packet Received...\n");
 				if(!radio->rx_flags.rx_stay)
 				{
 					//if not stay go standby

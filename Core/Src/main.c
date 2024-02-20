@@ -24,6 +24,8 @@
 #include "main.h"
 #include "sx1278.h"
 #include <string.h>
+
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,7 +57,7 @@ radio r;
 
 __attribute__((unused))
 uint8_t data[] = "$uicide Boys no we still breathn$uicide Boys no we still breathn\0\0\0\0\0";
-uint8_t tx_mesg[] = "Packet Sent...\n";
+uint8_t rx_mesg[] = "Entering RX Mode\r\n";
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -67,15 +69,47 @@ static void MX_TIM1_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
+//#define TRANSMITTER_MODULE	 	0
+#define RECEIVER_MODULE		0
+#define BUFFER_SIZE 64
+
+typedef struct {
+	uint8_t buffer[BUFFER_SIZE];
+	uint8_t buffer_len;
+	uint8_t buffer_ready;
+}uart_rx;
+
+uart_rx uart_buffer;
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void tmp_tx(radio *r, SPI_HandleTypeDef *hspi, uint8_t *data, uint8_t data_size)
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	r->sx_state = TRANSMITTER;
-	memcpy(r->tx_buffer, data, data_size);
-	HAL_UART_Transmit_IT(&huart1, tx_mesg, sizeof(tx_mesg));
+	//Is there enough space for EOL
+	if(uart_buffer.buffer_len < BUFFER_SIZE-1)
+	{
+		//If Carriage Return Detected.
+		if(uart_buffer.buffer[uart_buffer.buffer_len] == '\r')
+		{
+			//Get Ready to TX the packet of information.
+			uart_buffer.buffer[uart_buffer.buffer_len] = '\n';
+			uart_buffer.buffer[uart_buffer.buffer_len++] = '\0';
+			uart_buffer.buffer_ready = 1;
+		}
+		else
+		{
+			HAL_UART_Transmit_IT(&huart1, &uart_buffer.buffer[uart_buffer.buffer_len], 1);
+			uart_buffer.buffer_len++;
+			HAL_UART_Receive_IT(&huart1, &uart_buffer.buffer[uart_buffer.buffer_len], 1);
+		}
+	}
+	else
+	{
+		//Buffer is full
+		uart_buffer.buffer_ready = 1;
+	}
 }
 
 void tmp_rx(radio *r, SPI_HandleTypeDef *hspi)
@@ -84,7 +118,23 @@ void tmp_rx(radio *r, SPI_HandleTypeDef *hspi)
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
-	tmp_tx(&r, &hspi1, data, sizeof(data));
+//	tmp_tx(&r, &hspi1, data, sizeof(data));
+}
+
+void sx1278_initializtation(void)
+{
+	  sx1278_init(&r, &hspi1);
+	  r.huart = &huart1;
+	  HAL_TIM_Base_Init(&htim1);
+#ifdef TRANSMITTER_MODULE
+	  uart_buffer.buffer_len = 0;
+	  uart_buffer.buffer_ready = 0;
+	  HAL_UART_Receive_IT(&huart1, &uart_buffer.buffer[0], 1);
+#endif
+#ifdef RECEIVER_MODULE
+	  HAL_UART_Transmit(&huart1, rx_mesg, strlen((char*)rx_mesg), 100);
+	  tmp_rx(&r, &hspi1);
+#endif
 }
 
 /* USER CODE END 0 */
@@ -122,10 +172,7 @@ int main(void)
   MX_TIM1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Init(&htim1);
-//  HAL_TIM_Base_Start_IT(&htim1);
-  sx1278_init(&r, &hspi1);
-  tmp_rx(&r, &hspi1);
+  sx1278_initializtation();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -133,6 +180,30 @@ int main(void)
   while (1)
   {
 	  SX1278_APP(&r, &hspi1);
+#ifdef TRANSMITTER_MODULE
+	  if(uart_buffer.buffer_ready)
+	  {
+		  //Buffer is ready. Submit to be sent.
+		  if(!r.tx_state_flags.tx_packet_start)
+		  {
+			  r.sx_state = TRANSMITTER;
+		  	  memcpy(r.tx_buffer, (void *)&uart_buffer.buffer[0],uart_buffer.buffer_len);
+		  	  r.tx_state_flags.tx_packet_start = 1;
+		  }
+		  else if(r.tx_state_flags.tx_packet_sent)
+		  {
+			  //Packet Sent.
+			  uart_buffer.buffer_ready = 0;
+			  uart_buffer.buffer_len = 0;
+			  r.tx_state_flags.tx_packet_start = 0;
+			  HAL_UART_Receive_IT(&huart1, &uart_buffer.buffer[0], 1);
+		  }
+		  else
+		  {
+			  //Wait
+		  }
+	  }
+#endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -307,7 +378,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 1;
+  htim1.Init.Prescaler = 0;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 65535;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -350,7 +421,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 9600;
+  huart1.Init.BaudRate = 115200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
